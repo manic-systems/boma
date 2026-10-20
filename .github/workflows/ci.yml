@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
+
+jobs:
+  checks:
+    name: Checks
+    uses: manic-systems/workflows/.github/workflows/rust-checks.yml@4d2d4a73ac933d23f00fb7a17dd39569f8e1c1dc # v2.3.2
+    with:
+      os: macos-latest
+      flake-check: false
+      fmt: true
+      fmt-command: cargo fmt --check && taplo fmt --check
+      clippy: true
+      clippy-command: cargo clippy --locked --all-targets -- -D warnings
+
+  msrv:
+    name: MSRV
+    uses: manic-systems/workflows/.github/workflows/rust-checks.yml@4d2d4a73ac933d23f00fb7a17dd39569f8e1c1dc # v2.3.2
+    with:
+      os: macos-latest
+      install-nix: false
+      flake-check: false
+      rust-toolchain: 1.95.0
+      test: true
+      test-command: cargo check --locked --all-targets
+
+  build:
+    name: Build
+    permissions:
+      actions: write
+      contents: read
+    uses: manic-systems/workflows/.github/workflows/nix-checks.yml@4d2d4a73ac933d23f00fb7a17dd39569f8e1c1dc # v2.3.2
+    with:
+      os: macos-latest
+      cache: true
+      cache-save: true
+
+  actions:
+    name: Actions Lint
+    uses: manic-systems/workflows/.github/workflows/actions-lint.yml@4d2d4a73ac933d23f00fb7a17dd39569f8e1c1dc # v2.3.2
+
+  required:
+    name: Required Checks
+    if: always()
+    needs:
+      - checks
+      - msrv
+      - build
+      - actions
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

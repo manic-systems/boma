@@ -1,0 +1,157 @@
+[package]
+name         = "boma"
+description  = "Nix external builder running Linux derivations in a fresh Virtualization.framework VM"
+edition      = "2024"
+license      = "EUPL-1.2"
+repository   = "https://github.com/manic-systems/boma"
+keywords     = [ "nix", "builder", "virtualization", "linux", "macos" ]
+categories   = [ "development-tools::build-utils", "os::macos-apis" ]
+readme       = "README.md"
+rust-version = "1.95.0"
+version      = "0.1.0"
+
+[dependencies]
+block2     = "0.6.2"
+dispatch2  = "0.3.1"
+libc       = "0.2.191"
+misstep    = { version = "0.4.1", features = [ "color", "location", "panic-hook" ] }
+objc2      = "0.6.5"
+pound      = "0.5.3"
+serde      = { version = "1.0.229", features = [ "derive" ] }
+serde_json = "1.0.154"
+
+[dependencies.objc2-foundation]
+default-features = false
+features         = [ "std", "NSError", "NSFileHandle", "NSObject", "NSProcessInfo", "NSString", "NSURL" ]
+version          = "0.3.2"
+
+[dependencies.objc2-virtualization]
+default-features = false
+features = [
+  "std",
+  "block2",
+  "dispatch2",
+  "VZBootLoader",
+  "VZDirectoryShare",
+  "VZDirectorySharingDeviceConfiguration",
+  "VZDiskImageStorageDeviceAttachment",
+  "VZEntropyDeviceConfiguration",
+  "VZFileHandleSerialPortAttachment",
+  "VZGenericPlatformConfiguration",
+  "VZLinuxBootLoader",
+  "VZLinuxRosettaDirectoryShare",
+  "VZMACAddress",
+  "VZNATNetworkDeviceAttachment",
+  "VZNetworkDevice",
+  "VZNetworkDeviceAttachment",
+  "VZNetworkDeviceConfiguration",
+  "VZPlatformConfiguration",
+  "VZSerialPortAttachment",
+  "VZSerialPortConfiguration",
+  "VZSharedDirectory",
+  "VZSingleDirectoryShare",
+  "VZSocketDevice",
+  "VZSocketDeviceConfiguration",
+  "VZStorageDeviceAttachment",
+  "VZStorageDeviceConfiguration",
+  "VZVirtioBlockDeviceConfiguration",
+  "VZVirtioConsoleDeviceSerialPortConfiguration",
+  "VZVirtioEntropyDeviceConfiguration",
+  "VZVirtioFileSystemDeviceConfiguration",
+  "VZVirtioNetworkDeviceConfiguration",
+  "VZVirtioSocketConnection",
+  "VZVirtioSocketDevice",
+  "VZVirtioSocketDeviceConfiguration",
+  "VZVirtioSocketListener",
+  "VZVirtualMachine",
+  "VZVirtualMachineConfiguration",
+  "VZVirtualMachineDelegate",
+]
+version = "0.3.2"
+
+[lints.clippy]
+cargo       = { level = "warn", priority = -1 }
+complexity  = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+nursery     = { level = "warn", priority = -1 }
+pedantic    = { level = "warn", priority = -1 }
+perf        = { level = "warn", priority = -1 }
+style       = { level = "warn", priority = -1 }
+suspicious  = { level = "warn", priority = -1 }
+
+# Restrictions, and overrides for the groups above.
+absolute_paths                       = "warn"
+allow_attributes                     = "warn"
+allow_attributes_without_reason      = "deny"
+arbitrary_source_item_ordering       = "allow"
+clone_on_ref_ptr                     = "warn"
+dbg_macro                            = "deny"
+disallowed_methods                   = "deny"
+disallowed_types                     = "deny"
+empty_drop                           = "warn"
+empty_structs_with_brackets          = "warn"
+excessive_nesting                    = "warn"
+exit                                 = "warn"
+filetype_is_file                     = "warn"
+get_unwrap                           = "allow" # suggests panicking indexing; unwrap_used handles this
+implicit_return                      = "allow"
+infinite_loop                        = "warn"
+iter_on_single_items                 = "warn"
+let_underscore_future                = "deny"
+map_with_unused_argument_over_ranges = "warn"
+missing_docs_in_private_items        = "allow"
+missing_safety_doc                   = "deny"
+non_ascii_literal                    = "allow"
+non_std_lazy_statics                 = "warn"
+non_zero_suggestions                 = "warn"
+pathbuf_init_then_push               = "warn"
+pattern_type_mismatch                = "allow"
+precedence_bits                      = "warn"
+pub_underscore_fields                = "warn"
+question_mark_used                   = "allow"
+rc_buffer                            = "warn"
+rc_mutex                             = "warn"
+redundant_clone                      = "warn"
+rest_pat_in_fully_bound_structs      = "warn"
+self_named_module_files              = "warn"
+significant_drop_in_scrutinee        = "warn"
+similar_names                        = "allow"
+single_call_fn                       = "allow"
+std_instead_of_core                  = "allow"
+suspicious_operation_groupings       = "warn"
+too_long_first_doc_paragraph         = "allow"
+too_many_lines                       = "allow"
+undocumented_unsafe_blocks           = "deny"
+unnecessary_safety_comment           = "warn"
+unused_peekable                      = "warn"
+unused_result_ok                     = "warn"
+unused_trait_names                   = "allow"
+
+# Incompatible transitive versions :(
+multiple_crate_versions = "allow"
+
+# Tests may opt in locally; production panics need an explicit justification.
+panic       = "deny"
+unwrap_used = "deny"
+
+# Review intentional panics and diagnostic output.
+expect_used   = "warn"
+print_stderr  = "warn"
+print_stdout  = "warn"
+todo          = "deny"
+unimplemented = "deny"
+unreachable   = "warn"
+
+[lints.rust]
+non_ascii_idents       = "warn" # prevent non-ASCII identifiers
+tail_expr_drop_order   = "warn" # catch temporaries dropped in surprising order
+unit_bindings          = "warn" # catch useless `let _ = expr` bindings
+unsafe_code            = "warn" # guess.
+unsafe_op_in_unsafe_fn = "deny" # require explicit unsafe blocks
+unused_must_use        = "deny" # handle must-use results explicitly
+unused_unsafe          = "warn" # catch unnecessary unsafe blocks
+
+[profile.release]
+codegen-units = 1
+lto           = "thin"
+strip         = "symbols"
