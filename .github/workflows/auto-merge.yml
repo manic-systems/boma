@@ -9,6 +9,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: manic-systems/workflows/.github/workflows/auto-merge.yml@4d2d4a73ac933d23f00fb7a17dd39569f8e1c1dc # v2.3.2
+    uses: manic-systems/workflows/.github/workflows/auto-merge.yml@04de11cf1e8a931302cb4c6ce5b0957dcfa71b74 # v2.3.3
     with:
       approve: true
