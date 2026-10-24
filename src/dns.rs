@@ -15,6 +15,8 @@ use std::{
    time::Duration,
 };
 
+use crate::relay::splice;
+
 /// The vsock port a networked guest's resolver forwards to.
 pub const DNS_PORT: u32 = 53;
 
@@ -57,17 +59,6 @@ pub fn relay(guest: UnixStream) {
          return guest.shutdown(Shutdown::Both);
       };
 
-      let (mut guest_reader, mut upstream_writer) = (guest.try_clone()?, upstream.try_clone()?);
-
-      let forward = thread::spawn(move || {
-         let _copied = io::copy(&mut guest_reader, &mut upstream_writer);
-         let _closed = upstream_writer.shutdown(Shutdown::Write);
-      });
-
-      let (mut upstream_reader, mut guest_writer) = (upstream, guest);
-      let _copied = io::copy(&mut upstream_reader, &mut guest_writer);
-      let _closed = guest_writer.shutdown(Shutdown::Write);
-      let _joined = forward.join();
-      Ok(())
+      splice(guest, upstream.try_clone()?, upstream, TcpStream::shutdown)
    });
 }

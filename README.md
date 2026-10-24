@@ -58,6 +58,10 @@ is where the actual sandboxing happens. It's expected to
 Networked builds also get `ip=dhcp` on the kernel command line and a DNS relay on vsock port 53. When
 `--scratch` is nonzero, a sparse virtio-blk disk shows up for the guest to swap to.
 
+Each `--socket` path is listed in `sandbox.json` under `sockets` with a vsock port, counting up from
+1024. The guest should listen on the same path and pass each connection through to that port, where
+boma connects it to the host's socket.
+
 ## License
 
 [EUPL-1.2](LICENSE)

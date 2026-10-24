@@ -4,6 +4,7 @@
 mod dns;
 mod entitlement;
 mod machine;
+mod relay;
 mod request;
 mod signals;
 
@@ -102,6 +103,9 @@ struct Arguments {
    /// a file listing store paths, one per line, all bound into the sandbox.
    #[pound(long)]
    sandbox_closure: Vec<PathBuf>,
+   /// a host unix socket builds reach at the same path, relayed over vsock.
+   #[pound(long)]
+   socket:          Vec<PathBuf>,
    /// MiB of sparse scratch disk the guest swaps to, 0 for none.
    #[pound(long, default = "65536")]
    scratch:         u64,
@@ -272,7 +276,7 @@ impl Ready {
 
       let mut paths = arguments.sandbox_path;
       paths.extend(closure_paths(&arguments.sandbox_closure)?);
-      let sandbox = build.stage(&paths, network, kvm)?;
+      let sandbox = build.stage(&paths, &arguments.socket, network, kvm)?;
 
       let scratch_path = (arguments.scratch > 0).then(|| build.top_tmp_dir.join("scratch.img"));
 
@@ -305,10 +309,11 @@ impl Ready {
          nested: kvm,
          boot: Duration::from_secs(arguments.boot_timeout),
          scratch: scratch_path,
+         sockets: arguments.socket,
       };
 
       Ok(Self {
-         prepared: machine::prepare(&plan)?,
+         prepared: machine::prepare(plan)?,
          sandbox,
          _scratch: scratch,
          _lease: lease,

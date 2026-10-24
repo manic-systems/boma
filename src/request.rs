@@ -6,6 +6,7 @@ use std::{
    env,
    fs,
    io,
+   os::unix::fs::FileTypeExt as _,
    path::{
       Path,
       PathBuf,
@@ -30,6 +31,8 @@ use serde::{
    Deserialize,
    Serialize,
 };
+
+use crate::relay::SOCKET_PORT_BASE;
 
 /// The external-builders protocol revision this program speaks.
 #[derive(Deserialize)]
@@ -137,7 +140,13 @@ impl Build {
    /// Resolves the guest's sandbox paths, staging every source outside the
    /// store under the build's top directory, the only other host directory
    /// the guest sees.
-   pub fn stage(&self, paths: &[SandboxPath], network: bool, kvm: bool) -> Result<Sandbox> {
+   pub fn stage(
+      &self,
+      paths: &[SandboxPath],
+      sockets: &[PathBuf],
+      network: bool,
+      kvm: bool,
+   ) -> Result<Sandbox> {
       let mut placed = Vec::new();
       let mut seen = BTreeSet::new();
 
@@ -161,9 +170,44 @@ impl Build {
          self.stage_services()?;
       }
 
+      let mut bound = BTreeSet::new();
+
+      for path in sockets {
+         ensure!(
+            path.is_absolute(),
+            "socket path {} is not absolute",
+            path.display()
+         );
+         ensure!(
+            bound.insert(path),
+            "socket path {} is given twice",
+            path.display()
+         );
+
+         let metadata =
+            fs::metadata(path).with_context(|| format!("reading the socket {}", path.display()))?;
+         ensure!(
+            metadata.file_type().is_socket(),
+            "socket path {} is not a socket",
+            path.display()
+         );
+      }
+
+      let sockets = sockets
+         .iter()
+         .zip(SOCKET_PORT_BASE..)
+         .map(|(path, port)| {
+            Forwarded {
+               path: path.clone(),
+               port,
+            }
+         })
+         .collect();
+
       Ok(Sandbox {
          file: self.top_tmp_dir.join("sandbox.json"),
          paths: placed,
+         sockets,
          kvm,
          ca_file,
       })
@@ -255,6 +299,7 @@ impl Build {
 pub struct Sandbox {
    file:    PathBuf,
    paths:   Vec<Placed>,
+   sockets: Vec<Forwarded>,
    kvm:     bool,
    ca_file: Option<PathBuf>,
 }
@@ -269,6 +314,7 @@ impl Sandbox {
 
       let text = serde_json::to_vec(&SandboxFile {
          paths:       &self.paths,
+         sockets:     &self.sockets,
          kvm:         self.kvm,
          ca_file:     self.ca_file.as_deref(),
          clock_nanos: u64::try_from(clock_nanos)
@@ -338,10 +384,19 @@ struct Placed {
    optional: bool,
 }
 
+/// A host socket the guest binds at `path`, reaching the host on vsock `port`.
+#[derive(Serialize)]
+struct Forwarded {
+   path: PathBuf,
+   port: u32,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SandboxFile<'sandbox> {
    paths:       &'sandbox [Placed],
+   #[serde(skip_serializing_if = "<[_]>::is_empty")]
+   sockets:     &'sandbox [Forwarded],
    kvm:         bool,
    #[serde(skip_serializing_if = "Option::is_none")]
    ca_file:     Option<&'sandbox Path>,

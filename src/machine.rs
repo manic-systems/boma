@@ -116,6 +116,10 @@ use crate::{
       DNS_PORT,
       relay,
    },
+   relay::{
+      SOCKET_PORT_BASE,
+      forward,
+   },
    request::System,
    signals::Signal,
 };
@@ -259,6 +263,7 @@ pub struct Plan {
    pub nested:  bool,
    pub boot:    Duration,
    pub scratch: Option<PathBuf>,
+   pub sockets: Vec<PathBuf>,
 }
 
 /// A value touched only on the machine's queue.
@@ -280,7 +285,10 @@ impl<T> Confined<T> {
 }
 
 struct Ivars {
-   events: Sender<Event>,
+   events:  Sender<Event>,
+   /// Each forwarded socket's host path, listening on its index past
+   /// [`SOCKET_PORT_BASE`].
+   sockets: Vec<PathBuf>,
 }
 
 define_class!(
@@ -331,6 +339,20 @@ define_class!(
             return Bool::YES;
          }
 
+         let forwarded = port
+            .checked_sub(SOCKET_PORT_BASE)
+            .and_then(|index| self.ivars().sockets.get(usize::try_from(index).ok()?));
+
+         if let Some(path) = forwarded {
+            if fd < 0 {
+               return Bool::NO;
+            }
+
+            // SAFETY: fd is a fresh socket descriptor nothing else owns.
+            forward(unsafe { UnixStream::from_raw_fd(fd) }, path.clone());
+            return Bool::YES;
+         }
+
          if fd < 0 {
             let error = Report::new(io::Error::last_os_error());
 
@@ -366,8 +388,8 @@ define_class!(
 );
 
 impl Observer {
-   fn new(events: Sender<Event>) -> Retained<Self> {
-      let this = Self::alloc().set_ivars(Ivars { events });
+   fn new(events: Sender<Event>, sockets: Vec<PathBuf>) -> Retained<Self> {
+      let this = Self::alloc().set_ivars(Ivars { events, sockets });
       // SAFETY: NSObject's init on a freshly allocated subclass instance.
       unsafe { msg_send![super(this), init] }
    }
@@ -574,18 +596,20 @@ fn configure(plan: &Plan) -> Result<Retained<VZVirtualMachineConfiguration>> {
 }
 
 /// Validates the guest, so a bad configuration fails before anything boots.
-pub fn prepare(plan: &Plan) -> Result<Prepared> {
+pub fn prepare(plan: Plan) -> Result<Prepared> {
    Ok(Prepared {
-      config: configure(plan)?,
-      boot:   plan.boot,
-      dns:    plan.network.is_some(),
+      config:  configure(&plan)?,
+      boot:    plan.boot,
+      dns:     plan.network.is_some(),
+      sockets: plan.sockets,
    })
 }
 
 pub struct Prepared {
-   config: Retained<VZVirtualMachineConfiguration>,
-   boot:   Duration,
-   dns:    bool,
+   config:  Retained<VZVirtualMachineConfiguration>,
+   boot:    Duration,
+   dns:     bool,
+   sockets: Vec<PathBuf>,
 }
 
 impl Prepared {
@@ -596,7 +620,7 @@ impl Prepared {
       received: &Receiver<Event>,
    ) -> Result<Outcome, Failure> {
       let queue = DispatchQueue::new("machine", None);
-      let observer = Observer::new(events.clone());
+      let observer = Observer::new(events.clone(), self.sockets);
 
       let listener = Confined(
          // SAFETY: a fresh listener with no preconditions.
@@ -627,6 +651,9 @@ impl Prepared {
                device.setSocketListener_forPort(listener, STATUS_PORT);
                if dns {
                   device.setSocketListener_forPort(listener, DNS_PORT);
+               }
+               for port in (SOCKET_PORT_BASE..).take(observer.ivars().sockets.len()) {
+                  device.setSocketListener_forPort(listener, port);
                }
             }
 

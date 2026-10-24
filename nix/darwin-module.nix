@@ -60,6 +60,10 @@ let
   ]
   ++ optional cfg.kvm "--kvm"
   ++ concatMap (path: [
+    "--socket"
+    path
+  ]) cfg.sockets
+  ++ concatMap (path: [
     "--sandbox-path"
     path
   ]) (mapAttrsToList (target: source: "${target}=${source}") cfg.sandboxPaths);
@@ -123,6 +127,13 @@ in
         pass its own sandbox-paths to external builders. The closure of each store source is
         bound too, a trailing `?` makes a missing source fine.
       '';
+    };
+
+    sockets = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      example = [ "/run/build-cache.sock" ];
+      description = "Host unix sockets every build reaches at the same path, relayed over vsock.";
     };
 
     kvm = mkOption {
