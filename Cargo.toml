@@ -8,7 +8,7 @@ keywords     = [ "nix", "builder", "virtualization", "linux", "macos" ]
 categories   = [ "development-tools::build-utils", "os::macos-apis" ]
 readme       = "README.md"
 rust-version = "1.95.0"
-version      = "0.1.0"
+version      = "0.2.0"
 
 [dependencies]
 block2     = "0.6.2"
