@@ -67,6 +67,7 @@ use misstep::{
 };
 use pound::Parse;
 use request::{
+   AbsolutePath,
    Build,
    Sandbox,
    SandboxPath,
@@ -83,16 +84,16 @@ struct Arguments {
    #[pound(long)]
    initrd:          PathBuf,
    /// guest memory in MiB.
-   #[pound(long, default = "8192")]
+   #[pound(long, default = 8192)]
    memory:          u64,
    /// guest CPUs, instead of the build's cores setting.
    #[pound(long)]
    cpus:            Option<u32>,
    /// the guest kernel's console log level.
-   #[pound(long, default = "4")]
+   #[pound(long, default = 4)]
    loglevel:        u8,
    /// seconds the guest kernel may take to reach init.
-   #[pound(long, default = "30")]
+   #[pound(long, default = 30)]
    boot_timeout:    u64,
    /// give builds /dev/kvm through nested virtualization where supported.
    #[pound(long)]
@@ -105,9 +106,9 @@ struct Arguments {
    sandbox_closure: Vec<PathBuf>,
    /// a host unix socket builds reach at the same path, relayed over vsock.
    #[pound(long)]
-   socket:          Vec<PathBuf>,
+   socket:          Vec<AbsolutePath>,
    /// MiB of sparse scratch disk the guest swaps to, 0 for none.
-   #[pound(long, default = "65536")]
+   #[pound(long, default = 65536)]
    scratch:         u64,
    /// the build.json Nix wrote.
    build:           PathBuf,

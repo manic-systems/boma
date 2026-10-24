@@ -4,13 +4,21 @@ use std::{
       BTreeSet,
    },
    env,
+   error::Error,
+   fmt::{
+      self,
+      Display,
+      Formatter,
+   },
    fs,
    io,
+   ops::Deref,
    os::unix::fs::FileTypeExt as _,
    path::{
       Path,
       PathBuf,
    },
+   str::FromStr,
    time::{
       SystemTime,
       UNIX_EPOCH,
@@ -22,10 +30,6 @@ use misstep::{
    Result,
    ResultExt as _,
    ensure,
-};
-use pound::{
-   FromArg,
-   ValueError,
 };
 use serde::{
    Deserialize,
@@ -143,7 +147,7 @@ impl Build {
    pub fn stage(
       &self,
       paths: &[SandboxPath],
-      sockets: &[PathBuf],
+      sockets: &[AbsolutePath],
       network: bool,
       kvm: bool,
    ) -> Result<Sandbox> {
@@ -151,7 +155,7 @@ impl Build {
       let mut seen = BTreeSet::new();
 
       for (index, path) in paths.iter().enumerate() {
-         if !seen.insert(path.target.as_str()) {
+         if !seen.insert(&path.target) {
             continue;
          }
 
@@ -173,11 +177,6 @@ impl Build {
       let mut bound = BTreeSet::new();
 
       for path in sockets {
-         ensure!(
-            path.is_absolute(),
-            "socket path {} is not absolute",
-            path.display()
-         );
          ensure!(
             bound.insert(path),
             "socket path {} is given twice",
@@ -337,9 +336,13 @@ pub fn closure_paths(files: &[PathBuf]) -> Result<Vec<SandboxPath>> {
       let text = fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
 
       for line in text.lines().filter(|line| !line.is_empty()) {
+         let path = line
+            .parse::<AbsolutePath>()
+            .with_context(|| format!("store path {line} in {}", file.display()))?;
+
          paths.push(SandboxPath {
-            target:   line.to_owned(),
-            source:   PathBuf::from(line),
+            target:   path.clone(),
+            source:   path,
             optional: false,
          });
       }
@@ -348,30 +351,72 @@ pub fn closure_paths(files: &[PathBuf]) -> Result<Vec<SandboxPath>> {
    Ok(paths)
 }
 
+/// A path that starts at the root, the only kind the guest can place.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(transparent)]
+pub struct AbsolutePath(PathBuf);
+
+impl FromStr for AbsolutePath {
+   type Err = NotAbsolute;
+
+   fn from_str(raw: &str) -> Result<Self, NotAbsolute> {
+      let path = PathBuf::from(raw);
+
+      if !path.is_absolute() {
+         return Err(NotAbsolute);
+      }
+
+      Ok(Self(path))
+   }
+}
+
+impl AsRef<Path> for AbsolutePath {
+   fn as_ref(&self) -> &Path {
+      &self.0
+   }
+}
+
+impl Deref for AbsolutePath {
+   type Target = Path;
+
+   fn deref(&self) -> &Path {
+      &self.0
+   }
+}
+
+#[derive(Debug)]
+pub struct NotAbsolute;
+
+impl Display for NotAbsolute {
+   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+      formatter.write_str("the path is not absolute")
+   }
+}
+
+impl Error for NotAbsolute {}
+
 /// `TARGET=SOURCE` or `PATH`, with a trailing `?` when a missing source is
 /// fine, as in Nix's `sandbox-paths`.
 #[derive(Clone)]
 pub struct SandboxPath {
-   target:   String,
-   source:   PathBuf,
+   target:   AbsolutePath,
+   source:   AbsolutePath,
    optional: bool,
 }
 
-impl FromArg for SandboxPath {
-   fn from_arg(raw: &str) -> Result<Self, ValueError> {
+impl FromStr for SandboxPath {
+   type Err = NotAbsolute;
+
+   fn from_str(raw: &str) -> Result<Self, NotAbsolute> {
       let (spec, optional) = raw
          .strip_suffix('?')
          .map_or((raw, false), |bare| (bare, true));
 
       let (target, source) = spec.split_once('=').unwrap_or((spec, spec));
 
-      if !target.starts_with('/') || !source.starts_with('/') {
-         return Err(ValueError::new(raw, "sandbox paths are absolute"));
-      }
-
       Ok(Self {
-         target: target.to_owned(),
-         source: PathBuf::from(source),
+         target: target.parse()?,
+         source: source.parse()?,
          optional,
       })
    }
@@ -379,7 +424,7 @@ impl FromArg for SandboxPath {
 
 #[derive(Serialize)]
 struct Placed {
-   target:   String,
+   target:   AbsolutePath,
    source:   PathBuf,
    optional: bool,
 }
@@ -387,7 +432,7 @@ struct Placed {
 /// A host socket the guest binds at `path`, reaching the host on vsock `port`.
 #[derive(Serialize)]
 struct Forwarded {
-   path: PathBuf,
+   path: AbsolutePath,
    port: u32,
 }
 

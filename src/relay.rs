@@ -8,9 +8,10 @@ use std::{
    },
    net::Shutdown,
    os::unix::net::UnixStream,
-   path::PathBuf,
    thread,
 };
+
+use crate::request::AbsolutePath;
 
 /// The first vsock port a forwarded socket listens on, the rest follow in
 /// `--socket` order.
@@ -38,7 +39,7 @@ pub fn splice<Upstream: Read + Write + Send + 'static>(
 
 /// Splices one guest connection to the host's unix socket at `path`, closing
 /// it when nothing listens there. Errors only end the connection.
-pub fn forward(guest: UnixStream, path: PathBuf) {
+pub fn forward(guest: UnixStream, path: AbsolutePath) {
    thread::spawn(move || -> io::Result<()> {
       match UnixStream::connect(&path) {
          Ok(upstream) => splice(guest, upstream.try_clone()?, upstream, UnixStream::shutdown),

@@ -120,7 +120,10 @@ use crate::{
       SOCKET_PORT_BASE,
       forward,
    },
-   request::System,
+   request::{
+      AbsolutePath,
+      System,
+   },
    signals::Signal,
 };
 
@@ -263,7 +266,7 @@ pub struct Plan {
    pub nested:  bool,
    pub boot:    Duration,
    pub scratch: Option<PathBuf>,
-   pub sockets: Vec<PathBuf>,
+   pub sockets: Vec<AbsolutePath>,
 }
 
 /// A value touched only on the machine's queue.
@@ -288,7 +291,7 @@ struct Ivars {
    events:  Sender<Event>,
    /// Each forwarded socket's host path, listening on its index past
    /// [`SOCKET_PORT_BASE`].
-   sockets: Vec<PathBuf>,
+   sockets: Vec<AbsolutePath>,
 }
 
 define_class!(
@@ -388,7 +391,7 @@ define_class!(
 );
 
 impl Observer {
-   fn new(events: Sender<Event>, sockets: Vec<PathBuf>) -> Retained<Self> {
+   fn new(events: Sender<Event>, sockets: Vec<AbsolutePath>) -> Retained<Self> {
       let this = Self::alloc().set_ivars(Ivars { events, sockets });
       // SAFETY: NSObject's init on a freshly allocated subclass instance.
       unsafe { msg_send![super(this), init] }
@@ -609,7 +612,7 @@ pub struct Prepared {
    config:  Retained<VZVirtualMachineConfiguration>,
    boot:    Duration,
    dns:     bool,
-   sockets: Vec<PathBuf>,
+   sockets: Vec<AbsolutePath>,
 }
 
 impl Prepared {
