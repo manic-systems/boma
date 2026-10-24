@@ -8,7 +8,6 @@
 )]
 
 use std::{
-   error::Error,
    fmt::{
       self,
       Display,
@@ -48,6 +47,7 @@ use std::{
 
 use block2::RcBlock;
 use dispatch2::DispatchQueue;
+use flub::Error;
 use misstep::{
    OptionExt as _,
    Report,
@@ -184,7 +184,8 @@ pub enum Failure {
 
 /// An [`NSError`]'s localized description, carried as an error so a report
 /// keeps it apart from the context it failed in.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("{description} ({domain} {code})")]
 pub struct FrameworkError {
    description: String,
    domain:      String,
@@ -206,18 +207,6 @@ impl From<Retained<NSError>> for FrameworkError {
       Self::from(&*error)
    }
 }
-
-impl Display for FrameworkError {
-   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-      write!(
-         formatter,
-         "{} ({} {})",
-         self.description, self.domain, self.code
-      )
-   }
-}
-
-impl Error for FrameworkError {}
 
 /// What the main thread waits on.
 pub enum Event {

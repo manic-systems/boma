@@ -4,12 +4,6 @@ use std::{
       BTreeSet,
    },
    env,
-   error::Error,
-   fmt::{
-      self,
-      Display,
-      Formatter,
-   },
    fs,
    io,
    ops::Deref,
@@ -25,6 +19,7 @@ use std::{
    },
 };
 
+use flub::Error;
 use misstep::{
    OptionExt as _,
    Result,
@@ -44,16 +39,20 @@ use crate::relay::SOCKET_PORT_BASE;
 struct Version;
 
 impl TryFrom<u64> for Version {
-   type Error = String;
+   type Error = UnsupportedVersion;
 
-   fn try_from(version: u64) -> Result<Self, Self::Error> {
+   fn try_from(version: u64) -> Result<Self, UnsupportedVersion> {
       if version == 1 {
          Ok(Self)
       } else {
-         Err(format!("unsupported build.json version {version}"))
+         Err(UnsupportedVersion(version))
       }
    }
 }
+
+#[derive(Debug, Error)]
+#[error("unsupported build.json version {0}")]
+struct UnsupportedVersion(u64);
 
 /// What the guest runs on, from the derivation's `system`.
 #[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -384,16 +383,9 @@ impl Deref for AbsolutePath {
    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("the path is not absolute")]
 pub struct NotAbsolute;
-
-impl Display for NotAbsolute {
-   fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-      formatter.write_str("the path is not absolute")
-   }
-}
-
-impl Error for NotAbsolute {}
 
 /// `TARGET=SOURCE` or `PATH`, with a trailing `?` when a missing source is
 /// fine, as in Nix's `sandbox-paths`.

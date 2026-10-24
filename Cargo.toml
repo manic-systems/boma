@@ -13,6 +13,7 @@ version      = "0.2.0"
 [dependencies]
 block2     = "0.6.2"
 dispatch2  = "0.3.1"
+flub       = "0.1.0"
 libc       = "0.2.191"
 misstep    = { version = "0.4.1", features = [ "color", "location", "panic-hook" ] }
 objc2      = "0.6.5"
